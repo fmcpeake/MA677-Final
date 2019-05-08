@@ -1,0 +1,327 @@
+---
+title: "Haviland Final Project"
+author: "Fionnuala McPeake"
+date: "5/7/2019"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(haven,ggplot2, reshape2,dplyr,car,FSA,rcompanion,knitr,RColorBrewer,pwr)
+```
+
+## Statistics and the Law
+H0: White applicants are refused at the same rate as minority applicants
+H1: White applicants have a lower refusal rate than that of minority applicants
+
+Two-sample t-test
+```{r assumption}
+acron<-read.csv("acorn.csv")
+boxplot(acron$MIN,acron$WHITE)
+res.ftest <- var.test(acron$MIN,acron$WHITE)
+res.ftest
+```
+
+The p-value of F-test is p = 0.02993, which is less than our alpha (0.05). This indicates that there is significant difference between the variances of the two sets of data. 
+
+What direction is the difference? 
+
+t-test assuming unequal variances
+```{r t-test}
+res <- t.test(acron$MIN, acron$WHITE, var.equal = FALSE,alternative = "greater")
+res
+```
+
+Conclusion:
+
+The p-value of the test is 2.979e-07, which is less than the significance level alpha = 0.05. We reject the null hypothesis and support the argument that the data are sufficient evidence of discrimination to warrant corrective action.
+
+An opposing lawyer could argue that few banks were used in the study, and that it is possible that the size of the bank (national or not) has an influence. There may also be other factors other than income, such as credit score, that is influential but was not considered. 
+
+Note: Xiangliang helped me with this problem 
+
+
+## Comparing Suppliers
+
+```{r}
+library(tidyverse)
+library(kableExtra) 
+library(pwr)
+
+options(scipen=999, digits = 3)
+
+
+opts_chunk$set(echo = TRUE)
+```
+
+## Comparing Suppliers
+Is there a difference between the schools in the quality of work they produce? 
+
+Making data frame
+```{r echo = FALSE}
+ex2 <-  matrix(data = c(12,23,89,8,12,62,21,30,119),ncol = 3, byrow = TRUE )
+tex2 <- as.data.frame(ex2)
+
+rownames(tex2) <- c("Area 51", "BDV", "Giffen")
+colnames(tex2) <- c("Dead", "Display", "Art")
+
+kable(tex2)
+```
+
+Test for independence with a Chi squared test
+```{r echo=TRUE}
+## data
+ex2
+
+## margins
+m1 <- rowSums(ex2)
+m1
+
+m2 <- colSums(ex2)
+m2
+
+
+##  Expected
+ex2.expt <- outer(m1,m2, '*')/376 #376 is the sum of the columns and the rows
+ex2.expt
+
+## Chi-sq
+chi2 <- 1 - pchisq(q = Q, df = 4)
+chi2
+
+chisq.test(ex2)
+```
+The Chi square test has a p-value of 0.9, with 4 degrees of freedom. This indicates that we cannot reject the null hypothesis, and they do produce the same quality. 
+
+## Shark Attacks
+
+```{r}
+library(readr)
+library(pwr)
+Shark <- read_csv("Shark.csv")
+Shark <- Shark %>%
+  subset(select = -c(1)) %>%
+  filter(Country == "United States" | Country == "Australia")
+```
+
+#EDA
+
+2032 attacks were in the US, 1224 were in Australia
+217 fatal attacks were in the US, 318 fatal attacks were in Australia
+So 10.6% of US attacks are fatal, 25.9% of Australian attacks are fatal
+```{r}
+count <- Shark %>%
+  group_by(Country) %>%
+  summarize(count = n())
+
+fatal.count <- Shark %>%
+  filter(Fatal == "Y") %>%
+  group_by(Country) %>%
+  summarize(count = n())
+
+ggplot(data = Shark) +
+  aes(x = Country, fill = Fatal) +
+  geom_bar() +
+  labs(title = "Shark Attacks by Country",
+    y = "Count") +
+  theme_minimal()
+```
+
+# Statistical Testing
+Are Australian sharks and American sharks equal in their deadliness? 
+
+Chi Square Test
+```{r}
+Australia <- c(318, 906)
+US <- c(217, 1815)
+df <- as.data.frame(cbind(Australia, US))
+rownames(df) <- c("Fatal", "Non-Fatal")
+df
+
+chisq <- chisq.test(df)
+chisq #Answer
+```
+The chi-square test indicates that there is a large difference between the deadliness of American sharks in comparison to Australian sharks. While the chi-square test does not indicate which is more deadly, the proportion of deadly attacks within each country calculated in the EDA indicates that Australian sharks are more deadly than American sharks. It should be noted that if the attack was provoked or not was not considered, which may be of interest to some swimmers. 
+
+Power test
+```{r}
+N <- sum(df)
+
+## convert observations into frequencies
+ex31 <- df/sum(df)
+
+## observed frequencies
+ex31
+
+## margins
+m13 <- rowSums(ex31)
+m13
+
+m23 <- colSums(ex31)
+m23
+
+## expected given independence
+ex33.expt <- outer(m13,m23, '*')
+ex33.expt
+
+ex23.dif <- (ex31 - ex33.expt)^2/ex33.expt
+ex23.dif
+eses <- sqrt(sum(ex23.dif))
+
+ES.w2(ex31)
+
+pw3 <- pwr.chisq.test(w=ES.w2(ex31), N=N, df=1, sig.level=.05)
+pw3
+
+plot(pw3)
+```
+
+## Rain in Southern Illinois
+```{r}
+library(fitdistrplus)
+library(dglm)
+ill_60 <- read.delim("ill-60.txt", header = FALSE)
+ill_61 <- read.delim("ill-61.txt", header = FALSE)
+ill_62 <- read.delim("ill-62.txt", header = FALSE)
+ill_63 <- read.delim("ill-63.txt", header = FALSE)
+ill_64 <- read.delim("ill-64.txt", header = FALSE)
+
+colnames(ill_60) <- c("rain")
+colnames(ill_61) <- c("rain")
+colnames(ill_62) <- c("rain")
+colnames(ill_63) <- c("rain")
+colnames(ill_64) <- c("rain")
+
+ill_60$year <- c("1960")
+ill_61$year <- c("1961")
+ill_62$year <- c("1962")
+ill_63$year <- c("1963")
+ill_64$year <- c("1964")
+
+ill_60$obs <- seq.int(nrow(ill_60))
+ill_61$obs <- seq.int(nrow(ill_61))
+ill_62$obs <- seq.int(nrow(ill_62))
+ill_63$obs <- seq.int(nrow(ill_63))
+ill_64$obs <- seq.int(nrow(ill_64))
+
+rain <- rbind(ill_60, ill_61, ill_62, ill_63, ill_64)
+```
+
+EDA
+
+Right skewed distribution, so beta, gamma, Weibull, or lognormal can be used.
+```{r}
+hist(rain$rain, breaks = 20)
+```
+
+Can't use Beta because maximum is above 1. 
+```{r}
+descdist(rain$rain, obs.col = "red")
+min(rain$rain)
+max(rain$rain)
+mean(rain$rain)
+median(rain$rain)
+```
+
+Gamma or Lognormal?
+
+With the higher values, log normal is a better approximation, but gamma is better with the mid and starting values. 
+```{r}
+fit_ln <- fitdist(rain$rain, "lnorm")
+fit_g <- fitdist(rain$rain, "gamma")
+
+plot.legend <- c( "lognormal", "gamma")
+par(mfrow = c(2,2))
+denscomp(list( fit_ln, fit_g), legendtext = plot.legend)
+qqcomp(list( fit_ln, fit_g), legendtext = plot.legend)
+cdfcomp(list(fit_ln, fit_g), legendtext = plot.legend)
+ppcomp(list( fit_ln, fit_g), legendtext = plot.legend)
+```
+
+Weibull modeles the distribution well.  
+```{r}
+fit_w <- fitdist(rain$rain, "weibull")
+w_dist <- rweibull(n = 227, shape = 0.5690986, scale = 0.1394868)
+g_dist <- rgamma(n = 227, shape = 0.4408386, rate = 1.9648409)
+
+ks.test(w_dist, rain$rain)
+ks.test(g_dist, rain$rain)
+```
+
+Bootstrap function
+```{r}
+mle_gamma <- function(x){
+  parameter <- fitdistr(x, "gamma", start=list(shape=1, rate=1))$estimate
+  return(parameter)
+}
+# Bootstrap sample from data frame `x` with statistics calculated in `g` for `B` samples
+bootstrap <- function (x, g, B = 100) {
+  n <- nrow(x)
+  
+  theta.shape <- numeric(B)
+  theta.rate  <- numeric(B)
+  
+  for (i in 1:B) { 
+    
+    x.star <- x[sample.int(n, replace = TRUE), ]
+    
+    parameter <- g(x.star)
+    theta.shape[i] <- as.numeric(parameter['shape'])
+    theta.rate[i] <- as.numeric(parameter['rate'])
+    
+  }
+  
+  parameters <- list(theta.shape, theta.rate)
+  return(parameters)
+}
+
+parameters <- bootstrap(data.frame(rain$rain), g = mle_gamma)
+shape <- mean(parameters[[1]])
+shape_err <- sd(parameters[[1]])
+rate <- mean(parameters[[2]])
+rate_err <- sd(parameters[[2]])
+
+shape
+shape_err
+rate
+rate_err
+
+# Using method of moments for bootstrapped calculation of parameters
+mom_gamma <- function(x){
+  mu <- mean(x)
+  variance <- var(x)
+  parameter = list()
+  parameter['rate'] <- as.numeric(mu/variance)
+  parameter['shape'] <- as.numeric(mu^2/variance)
+  
+  return(parameter)
+}
+
+
+parameters <- bootstrap(data.frame(rain$rain), g = mom_gamma)
+shape <- mean(parameters[[1]])
+shape_err <- sd(parameters[[1]])
+rate <- mean(parameters[[2]])
+rate_err <- sd(parameters[[2]])
+
+shape
+shape_err
+rate
+rate_err
+
+# To calculate which is a better estimate, we can use KS test again 
+r_mom <- rgamma(n = 227, shape = 0.387184, scale = 1.739256)
+r_mle <- rgamma(n = 227, shape = 0.4428879, rate = 1.976928)
+
+ks.test(r_mom, rain$rain)
+
+
+ks.test(r_mle, rain$rain)
+```
+Maximum Likelihood Estimation does a better job at estimating the paramters compared to the Method of 
+Moments. Also, compared to standard error values compared in the paper, these standard error values are 
+more reliable
+
+Diptanshu Singh helped me with this problem
